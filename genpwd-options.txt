@@ -1,0 +1,16 @@
+b	brackets
+c	computational-symbols
+h	help	
+m	math
+N	no-common-symbols
+o	options
+p	password-size
+u	punctuation
+q	quotation
+g	random-number-generator
+r	read-retries
+l	slashes
+s	space
+e	special
+
+$ ./genpwd -b --comp -m --no-common-symbols --password-size=40 -u -q --read=5 -l --space -e -g /dev/random

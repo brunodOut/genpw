@@ -43,12 +43,26 @@
 #define d_msg_f(msg, ...) fprintf(stderr, \
 				"DEBUG: " msg "\n", \
 			       	__VA_ARGS__)
-#define d_msg(msg) fprintf(stderr, "DEBUG" msg "\n")
+#define d_msg(msg) fprintf(stderr, "DEBUG: " msg "\n")
 #define d_opt_status(opt, stt) d_msg(opt " is " stt)
+#define d_opt_status_val(opt, stt, fmt) d_msg_f(opt " is set to " fmt, stt)
+#define d_opt_status_size(opt, stt) d_opt_status_val(opt, stt, "%zu")
+#define d_opt_status_int(opt, stt) d_opt_status_val(opt, stt, "%d")
+#define d_opt_status_uint(opt, stt) d_opt_status_val(opt, stt, "%u")
+#define d_opt_status_s_s(opt, stt) d_msg_f("%s is set to %s", opt, stt)
+#define d_opt_status_s_size(opt, stt) d_msg_f("%s is set to %zu", opt, stt)
+#define d_opt_status_s_int(opt, stt) d_msg_f("%s is set to %d", opt, stt)
 #else
 #define d_msg_f(msg, ...)
 #define d_msg(msg)
 #define d_opt_status(opt, stt)
+#define d_opt_status_val(opt, stt, fmt)
+#define d_opt_status_size(opt, stt)
+#define d_opt_status_int(opt, stt)
+#define d_opt_status_uint(opt, stt)
+#define d_opt_status_s_s(opt_s, opt)
+#define d_opt_status_s_size(opt_s, opt)
+#define d_opt_status_s_int(opt, stt)
 #endif
 
 
@@ -72,32 +86,116 @@ const char computing_meaningful_chr[] = { 0x22, 0x25, 0x26,
 					  0x3F, 0x7C, NC };
 const char slash_chr[] = { 0x2F, 0x5C, NC };
 const char math_chr[] = { 0x2B, 0x2D, 0x3C,
-			  0x3D, 0x3E, NC };
+			  0x3D, 0x3E, 0x42, 0x47, NC };
 const char special_chr[] = { 0x5E, 0x7E, NC };
 
+typedef enum {
+	O_BRACKET = 'b',
+	O_COMPUTATIONAL = 'c',
+	O_HELP = 'h',
+	O_MATH = 'm',
+	O_COMMON_SYMBOLS = 'n',
+	O_NO_COMMON_SYMBOLS = 'N',
+	O_OPTIONS = 'o',
+	O_PASS_SIZE = 'p',
+	O_PUNCTUATION = 'u',
+	O_QUOTATION = 'q',
+	O_RANDNUMGEN = 'g',
+	O_READ_RETRIES = 'r',
+	O_SLASHES = 'l',
+	O_SPACE = 's',
+	O_SPECIAL = 'e',
+	O_MAX_OPT = 122
+} e_opts;
+
+char * opts_s[] = {
+	[O_BRACKET] = "brackets",
+	[O_COMPUTATIONAL] = "computational-symbols",
+	[O_HELP] = "help", [O_MATH] = "math",
+	[O_COMMON_SYMBOLS] = "common-symbols",
+	[O_NO_COMMON_SYMBOLS] = "no-common-symbols",
+	[O_OPTIONS] = "options",
+	[O_PASS_SIZE] = "password-size",
+	[O_PUNCTUATION] = "punctuation",
+	[O_QUOTATION] = "quotation",
+	[O_READ_RETRIES] = "read-retries", 
+	[O_RANDNUMGEN] = "random-number-generator",
+	[O_SLASHES] = "slashes",
+	[O_SPACE] = "space", [O_SPECIAL] = "special"
+};
 struct genpwd_options {
-	int space;
-	int punct;
-	int quote;
-	int common;
 	int bracket;
 	int comput;
-	int slash;
+	int common;
 	int math;
+	size_t pwd_size; //password size
+	int punct;
+	int quote;
+	char rand_gen [PATH_MAX + 1];
+	unsigned int read_retries;
+	int slash;
+	int space;
 	int special;
-	size_t size;
-	unsigned int max_read_trials;
-	size_t c_gen;
+	size_t c_gen; //future count for currently generated chars
 };
 
 struct genpwd_options g_opt = {
-	.space = 0, .punct = 0, .quote = 0,
-	.common = 1, .bracket = 0, .c_gen = 0, 
-	.comput = 0, .slash = 0, .math = 0,
-	.special = 0, .size = 16, .max_read_trials = 5
+	.bracket = 0, .comput = 0, .common = 1, .math = 0,
+	.pwd_size = 16, .punct = 0, .quote = 0,
+	.rand_gen = "/dev/random", .read_retries = 5, 
+	.slash = 0, .space = 0, .special = 0, .c_gen = 0
 };
 
+void *opts_p[] = {
+	[O_BRACKET] = &g_opt.bracket,
+	[O_COMPUTATIONAL] = &g_opt.comput,
+	[O_COMMON_SYMBOLS] = &g_opt.common,
+	[O_NO_COMMON_SYMBOLS] = &g_opt.common,
+	[O_MATH] = &g_opt.math, 
+	[O_PASS_SIZE] = &g_opt.pwd_size,
+	[O_PUNCTUATION] = &g_opt.punct, 
+	[O_QUOTATION] = &g_opt.quote, 
+	[O_READ_RETRIES] = &g_opt.read_retries, 
+	[O_RANDNUMGEN] = &g_opt.rand_gen,
+	[O_SLASHES] = &g_opt.slash, [O_SPACE] = &g_opt.space,
+	[O_SPECIAL] = &g_opt.special
+};
 
+static inline void setopt(e_opts opt, void *val)
+{
+	if (opt == O_OPTIONS || opt == O_HELP) {
+		// no execution options, nothing to do
+		d_msg("UNEXPECTED BEHAVIOR: " 
+			  "setopt received O_OPTIONS or O_HELP");
+		return;
+	}
+	else if (opt == O_PASS_SIZE) {
+		size_t *o = opts_p[opt];
+		size_t v = atoi((char *) val);
+		assert(v > 0);
+		d_opt_status_s_size(opts_s[opt], v);
+		*o = v;
+		return;
+	} else if (opt == O_RANDNUMGEN) {
+		char *o = opts_p[opt];
+		char *v = val;
+		strncpy(o, v, PATH_MAX);
+		//sets \0 character in case the str is truncated:
+		o[PATH_MAX] = 0; 
+	} else if (opt == O_READ_RETRIES) {
+		unsigned int *o = opts_p[opt];
+		unsigned int v = atoi((char *) val);
+		assert(v > 0);
+		*o = v;
+		return;
+	}
+	else { // all other options have same treatment
+		int *v = val;
+		int *o = opts_p[opt];
+		assert(v != NULL && o != NULL);
+		*o = *v;
+	}
+}
 
 static inline void err_msg(char *err_m, int exstt)
 {
@@ -120,37 +218,131 @@ static inline char * pick_case(uint8_t num, char *s)
 
 void parse_options(int argc, char **argv){
 	int idx = 0;
-	int c;
-	char *shopts = "spqNbcamlz:t:h";
+	int c = -2;
+	char *shopts = "bchmNo:p:uqr:lg:se";
+
 	struct option lopts[] = {
-		{"space-char", no_argument, &g_opt.space,
+		{opts_s[O_BRACKET], no_argument, 
+			opts_p[O_BRACKET], 1},
+		{opts_s[O_COMPUTATIONAL], no_argument, 
+			opts_p[O_COMPUTATIONAL], 1},
+		{opts_s[O_HELP], no_argument, NULL, 0},
+		{opts_s[O_MATH], no_argument, opts_p[O_MATH], 1},
+		{opts_s[O_NO_COMMON_SYMBOLS], no_argument, 
+			opts_p[O_NO_COMMON_SYMBOLS], 0},
+		{opts_s[O_OPTIONS], required_argument, NULL, 
+			O_OPTIONS},
+		{opts_s[O_PASS_SIZE], required_argument, NULL, 
+			O_PASS_SIZE},
+		{opts_s[O_PUNCTUATION], no_argument, 
+			opts_p[O_PUNCTUATION], 1},
+		{opts_s[O_QUOTATION], no_argument, 
+			opts_p[O_QUOTATION], 1},
+		{opts_s[O_RANDNUMGEN], required_argument, NULL,
+			O_RANDNUMGEN},
+		{opts_s[O_READ_RETRIES], required_argument, NULL,
+			O_READ_RETRIES},
+		{opts_s[O_SLASHES], no_argument, opts_p[O_SLASHES], 
 			1},
+		{opts_s[O_SPACE], no_argument, opts_p[O_SPACE], 1},
+		{opts_s[O_SPECIAL], no_argument, opts_p[O_SPECIAL], 
+			1},
+		/*{"space-char", no_argument, &g_opt.space,
+			's'},
 		{"punctuation-chars", no_argument,
-			&g_opt.punct, 1},
+			&g_opt.punct, 'p'},
 		{"quotation-chars", no_argument, 
-			&g_opt.quote, 1},
+			&g_opt.quote, 'q'},
 		{"no-common-symbols", no_argument, 
 			&g_opt.common, 0},
 		{"brackets", no_argument, &g_opt.bracket, 
-			1},
+			'b'},
 		{"computational-symbols", no_argument,
-			&g_opt.comput, 1},
-		{"slashes", no_argument, &g_opt.slash, 1},
+			&g_opt.comput, 'c'},
+		{"slashes", no_argument, &g_opt.slash, 'h'},
 		{"math-operators", no_argument, 
-			&g_opt.math, 1},
+			&g_opt.math, 'm'},
 		{"special", no_argument, &g_opt.special, 
-			1},
+			'l'},
 		{"password-size", required_argument, NULL,
 			'z'},
 		{"read-retries", required_argument, NULL,
 			't'},
-		{"help", no_argument, NULL, 'h'},
+		{"help", no_argument, NULL, 'h'},*/
 		{NULL, 0, NULL, 0}
 	}; 
 	while ((c = getopt_long(argc, argv, shopts, 
-				lopts, &idx) != -1))
+				lopts, &idx)) != -1)
 	{
-		switch(c){
+		if (c == O_HELP) {
+			err_msg("User asked for help", -1);
+			return;
+		} else if (c == 1 || c == 0) {
+			// man pages say it's not supposed to return 1
+			d_msg_f("The %s option is set to %s (c=%d)", 
+					lopts[idx].name, //fix it
+					c == 1 ? "on" : "off", c);
+					continue;
+		} else if ( c == O_PASS_SIZE || 
+					c == O_READ_RETRIES || 
+					c == O_RANDNUMGEN )
+		{
+			d_opt_status_s_s(opts_s[c], optarg);
+			setopt(c, optarg);
+			continue;
+		} else if (c == O_OPTIONS) {
+			// FIXME: Make it actually work
+			char *subopts = optarg;
+			char *val = NULL;
+			int err = 0;
+			
+			while(subopts != NULL && *subopts != 0 && !err)
+			{
+				c = getsubopt(&subopts, opts_s, &val);
+				if (c == -1 || c == O_OPTIONS) {
+					fprintf(stderr, 
+							"Invalid option ignored: %s\n",
+							val);
+					continue;
+				}
+				if (c == O_HELP) {
+					//fprintf(stderr,
+					err_msg("User requested help", 0);
+					break;
+				}
+				else if ( c == O_PASS_SIZE || 
+						  c == O_READ_RETRIES )
+				{
+					setopt(c, val);
+					continue;
+				} else {
+					int value = 
+						(c != O_NO_COMMON_SYMBOLS) ? 1 : 0;
+					setopt(c, &value);
+					continue;
+				}
+			}
+			continue;
+		} else if ( c >= 0 && c < sizeof(opts_s)  && 
+					opts_s[c] != NULL) {
+			/* if it's contained in the string arrays and
+				not the ':' sign, then it's a valid option;
+				So we check if it's a disabling option
+				(only O_NO_COMMON_SYMBOLS so far) or an
+				enabling option (all others) and pass the
+				proper value to setopt()
+			*/
+			int val = (c == O_NO_COMMON_SYMBOLS) ? 0 : 1;
+			d_opt_status_s_int(opts_s[c], val);
+			setopt(c, &val);
+			continue;
+		} 
+		else {
+			err_msg("Invalid Command-line Argument", -1);
+			return;
+		}
+
+		/*switch(c){
 			case 0:
 				d_msg_f("The %s option is off",
 				      lopts[idx].name);
@@ -159,59 +351,72 @@ void parse_options(int argc, char **argv){
 				d_msg_f("The %s option is on",
 				      lopts[idx].name);
 				break;
-			case 's':
-				d_opt_status("status", "on");
-				g_opt.space = 1;
-				break;
-			case 'p':
-				d_opt_status("punctuation", "on");
-				g_opt.punct = 1;
-				break;
-			case 'q':
-				d_opt_status("quotation", "on");
-				g_opt.quote = 1;
-				break;
-			case 'N':
-				d_opt_status("common symbols", "off");
-				g_opt.common = 0;
-				break;
-			case 'b':
+			case O_BRACKET:
 				d_opt_status("brakets", "on");
 				g_opt.bracket = 1;
 				break;
-			case 'c':
+			case O_COMMON_SYMBOLS:
+				d_opt_status("common symbols", "off");
+				g_opt.common = 0;
+				break;
+			case O_COMPUTATIONAL:
 				d_opt_status("computational symbols", "on");
 				g_opt.comput = 1;
 				break;
-			case 'a':
-				d_opt_status("slashes", "on");
-				g_opt.slash = 1;
-				break;
-			case 'm':
+			case O_MATH:
 				d_opt_status("math operators", "on");
 				g_opt.math = 0;
 				break;
-			case 'l':
-				d_opt_status("slashes", "on");
-				g_opt.special = 1;
+			case O_OPTIONS:
+				// implement
+				char *sub = optarg;
+				char *val = NULL;
+				int errfnd = 0;
+				
+				while (*subopts != 0 && !errfnd) {
+					switch(getsubopt(&subopts, opts_s, &val)) {
+						case O_BRACKET:
+							
+					}
+				}
 				break;
-			case 'z':
+			case O_PASS_SIZE:
 				g_opt.size = atoi(optarg);
 				d_msg_f("Password size set to %zu", g_opt.size);
 				if (!g_opt.size)
 				    err_msg("Password size must be greater than zero", errno);
 				break;
-			case 't':
+			case O_PUNCTUATION:
+				d_opt_status("punctuation", "on");
+				g_opt.punct = 1;
+				break;
+			case O_QUOTATION:
+				d_opt_status("quotation", "on");
+				g_opt.quote = 1;
+				break;
+			case O_READ_RETRIES:
 				g_opt.max_read_trials = atoi(optarg);
 				d_msg_f("Number of trials set to %zu", g_opt.size);
 				if (!g_opt.max_read_trials)
 				    err_msg("Retries must be greater than zero", errno);
 				break;
-			case 'h':
+			case O_SLASHES:
+				d_opt_status("slashes", "on");
+				g_opt.slash = 1;
+				break;
+			case O_SPACE:
+				d_opt_status("status", "on");
+				g_opt.space = 1;
+				break;
+			case O_SPECIAL:
+				d_opt_status(opts_s[O_SPECIAL], "on");
+				g_opt.special = 1;
+				break;
+			case O_HELP:
 				printf("Help:\n");
 			default:
 				err_msg("Invalid Command-line Argument", -1);
-		}
+		}*/
 	}	
 }
 
