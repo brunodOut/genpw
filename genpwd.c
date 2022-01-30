@@ -205,7 +205,7 @@ static inline void err_msg(char *err_m, int exstt)
 	exit(exstt);
 }
 
-static inline char * pick_case(uint8_t num, char *s)
+static inline char *pick_case(uint8_t num, char *s)
 {
        register char chr = (num % 2 == 0) ? 'x' : 'X';
        register char *p = s;
