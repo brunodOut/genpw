@@ -497,7 +497,7 @@ char process_chr(uint8_t chr)
 {
 	int i_chr = RANGE_CHAR(chr);
 	int iter = 0;
-	while (!isalnum(i_chr) && !isallowed(chr)) {
+	while (!isalpha(i_chr) && !isallowed(i_chr)) {
 		i_chr = RANGE_CHAR(++iter * i_chr);
 	}
 	return (char) i_chr;
@@ -512,7 +512,7 @@ void process_digest(uint8_t *digest)
 	register uint8_t *dg_ptr = digest;
 	const uint8_t *dg_end = digest + SHA512_DIGEST_SIZE;
 
-	char *fmt[] = { "%02x", "%02X" };
+	const char *const fmt[] = { "%02x", "%02X" };
 
 	bzero(output, sizeof(output));
 
@@ -522,43 +522,56 @@ void process_digest(uint8_t *digest)
 	}
 
 	while ( dg_ptr < dg_end && out_ptr < out_end && 
-		out_ptr - output < g_opt.size)
+		out_ptr - output < g_opt.pwd_size)
 	{
 		if (*dg_ptr % 5 == 0) {
-			*(out_ptr++) = 
-				process_chr(*dg_ptr++);
-			if ( out_ptr - output == 
-			     g_opt.size )
+			*(out_ptr++) = process_chr(*dg_ptr++);
+			if (out_ptr - output == g_opt.pwd_size)
 			       break;	
-			*(out_ptr++) = 
-				process_chr(*dg_ptr++);
+			*(out_ptr++) = process_chr(*dg_ptr++);
 			continue;
 		}
 
-		sprintf(out_ptr, fmt[*dg_ptr % 2], 
-			*dg_ptr);
+		sprintf(out_ptr, fmt[*dg_ptr % 2], *dg_ptr);
 		dg_ptr++;
 		while (out_ptr < out_end && *out_ptr != 0 
-		       && out_ptr - output < g_opt.size)
+		       && out_ptr - output < g_opt.pwd_size)
 		{
 			out_ptr++;
 		}
 	}
 
-	printf("%.*s", (int) g_opt.size, output);
+	printf("%.*s", (int) g_opt.pwd_size, output);
 
 }
 
 int main(int argc, char **argv)
 {
-	FILE *rdgen = fopen("/dev/random", "r");
+	FILE *rdgen = NULL;
 	uint8_t byte;
 	size_t buf_size;
 	uint8_t *buffer = NULL;
 	struct sha512_ctx ctx;
 	uint8_t digest[SHA512_DIGEST_SIZE];
+	struct stat rdg_stt;
+
+	bzero(&rdg_stt, sizeof(rdg_stt));
 
 	parse_options(argc, argv);
+
+	if (stat(g_opt.rand_gen, &rdg_stt) == -1)
+		err_msg("Cannot stat random generator", errno);
+
+	if (!S_ISCHR(rdg_stt.st_mode))
+		err_msg("Random Number Generator is not a "
+				"character device", -1);
+
+	if (major(rdg_stt.st_rdev) != 1)
+		fprintf(stderr, "Warning: %s (major=%d) isn't a "
+						"memory device\n", g_opt.rand_gen,
+						major(rdg_stt.st_mode));
+
+	rdgen = fopen(g_opt.rand_gen, "r");
 
 	read_uint8_t(&byte, rdgen, 
 			"Error reading initial byte");
