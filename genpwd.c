@@ -465,7 +465,7 @@ size_t read_uint8_t_bytes(void *ptr, FILE *stream,
 			  size_t times, char *errmsg)
 {
 	unsigned int trials = 0;
-	void *p = ptr;
+	uint8_t *p = ptr;
 	size_t ret = 0;
 	
 	if (p == NULL) // null pointer passed
@@ -476,11 +476,11 @@ size_t read_uint8_t_bytes(void *ptr, FILE *stream,
 		ret += fread(p, sizeof(uint8_t), 
 				   times, stream);
 		p += ret;
-		if (++trials == g_opt.max_read_trials)
+		if (++trials == g_opt.read_retries)
 		       break;	
 	}
 	while ( ret < (times * sizeof(uint8_t)) && 
-		(p - ptr) < times );
+		(p - (uint8_t *) ptr) < times );
 	
 	if (ret < (times * sizeof(uint8_t))) 
 		err_msg(errmsg, errno);
