@@ -22,16 +22,20 @@
  *
  * */
 
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <nettle/sha2.h>
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <getopt.h>
+#include <unistd.h>
+#include <assert.h>
+#include <linux/limits.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
+#include <nettle/sha2.h>
 
 #define RANGE_START 0x20
 #define RANGE_STOP 0x7E
@@ -417,7 +421,7 @@ void parse_options(int argc, char **argv){
 			default:
 				err_msg("Invalid Command-line Argument", -1);
 		}*/
-	}	
+	}
 }
 
 bool isallowed(char chr) 
@@ -426,16 +430,19 @@ bool isallowed(char chr)
 	
 	// if some allowed option matches the character,
 	//    we flag it as temporarily true
-	if ((g_opt.space && strchr(space_chr, chr)) ||
-	     (g_opt.punct && strchr(punct_chr, chr)) ||
-	     (g_opt.quote && strchr(quote_chr, chr)) ||
-	     (g_opt.common && strchr(common_chr, chr)) ||
-	     (g_opt.bracket && strchr(bracket_chr, chr)) ||
+	if ((g_opt.space && strchr(space_chr, chr) != NULL) ||
+	     (g_opt.punct && strchr(punct_chr, chr) != NULL) ||
+	     (g_opt.quote && strchr(quote_chr, chr) != NULL) ||
+	     (g_opt.common && 
+		  strchr(common_chr, chr) != NULL) ||
+	     (g_opt.bracket && 
+		  strchr(bracket_chr, chr) != NULL) ||
 	     (g_opt.comput && 
-	      strchr(computing_meaningful_chr, chr)) ||
-	     (g_opt.slash && strchr(slash_chr, chr)) ||
-	     (g_opt.math && strchr(math_chr, chr)) ||
-	     (g_opt.special && strchr(special_chr, chr)))
+	      strchr(computing_meaningful_chr, chr) != NULL) ||
+	     (g_opt.slash && strchr(slash_chr, chr) != NULL) ||
+	     (g_opt.math && strchr(math_chr, chr) != NULL) ||
+	     (g_opt.special && 
+		  strchr(special_chr, chr) != NULL))
 	{
 		ret = true;
 	}
@@ -574,7 +581,7 @@ int main(int argc, char **argv)
 	rdgen = fopen(g_opt.rand_gen, "r");
 
 	read_uint8_t(&byte, rdgen, 
-			"Error reading initial byte");
+				"Error reading initial byte");
 	buf_size = byte;
 
 	read_uint8_t(&byte, rdgen, 
