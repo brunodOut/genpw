@@ -22,11 +22,11 @@ you will need:
   and available in your INCLUDE_PATH.
 - gcc
 
-# `gcc -lnettle -o genpwd genpwd.c`
+\$ `gcc -lnettle -o genpwd genpwd.c`
 
 If you want debug support, try:
 
-# `gcc -lnettle -D__DEBUG__ -g3 -o genpwd genpwd.c`
+\$ `gcc -lnettle -D__DEBUG__ -g3 -o genpwd genpwd.c`
 
 # Usage
 
